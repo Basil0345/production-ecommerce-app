@@ -1,12 +1,12 @@
 import express from 'express';
-import { forgotPasswordController, getAllOrdersController, getOrdersController, loginController, orderStatusController, registerController, updateProfileController } from '../controllers/authController.js';
+import { checkExistingUser, forgotPasswordController, getAllOrdersController, getOrdersController, loginController, orderStatusController, registerController, sendOtpController, updateProfileController, verifyOtpController } from '../controllers/authController.js';
 import { isAdmin, requireSignIn } from '../middlewares/authMiddleware.js';
 //router object
 const router = express.Router();
 
 //routing
 //REGISTER || POST
-router.post('/register', registerController);
+// router.post('/register', registerController);
 
 //LOGIN || POST
 router.post('/login', loginController);
@@ -39,5 +39,11 @@ router.get("/all-orders", requireSignIn, isAdmin, getAllOrdersController);
 
 //order status update
 router.put("/order-status/:orderId", requireSignIn, isAdmin, orderStatusController);
+
+//sendOtp
+router.get("/sendOtp/:MailId", checkExistingUser, sendOtpController);
+
+//verifyOtp
+router.post("/verifyotp/:otp", verifyOtpController, registerController)
 
 export default router;

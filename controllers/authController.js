@@ -1,8 +1,8 @@
 import userModel from '../models/userModel.js';
 import orderModel from '../models/orderModel.js'
-import { comparePassword, hashPassword } from './../helpers/authHelper.js';
+import { comparePassword, hashPassword, sendOtp } from './../helpers/authHelper.js';
 import JWT from 'jsonwebtoken';
-import { model } from 'mongoose';
+import otp from '../models/otp.js';
 export const registerController = async (req, res) => {
     try {
         const { name, email, password, phone, address, answer } = req.body;
@@ -24,16 +24,6 @@ export const registerController = async (req, res) => {
         }
         if (!answer) {
             return res.send({ message: 'Answer is Required' });
-        }
-
-        //check user
-        const existingUser = await userModel.findOne({ email });
-        //existing user
-        if (existingUser) {
-            return res.status(200).send({
-                success: false,
-                message: 'Already Register please login'
-            })
         }
         //register user
         const hashedPassword = await hashPassword(password);
@@ -245,3 +235,80 @@ export const orderStatusController = async (req, res) => {
         })
     }
 };
+
+//Check existing user -> Registration 
+export const checkExistingUser = async (req, res, next) => {
+    try {
+        //check user
+        const existingUser = await userModel.findOne({ email: req.params.MailId });
+        //existing user
+        if (existingUser) {
+            return res.status(200).send({
+                success: false,
+                message: 'Already Registered'
+            })
+        } else {
+            next();
+        }
+    } catch (error) {
+        console.log(error);
+        res.status(500).send({
+            success: false,
+            message: 'Something went wrong',
+            error
+        })
+    }
+
+};
+
+
+//sendOtpController
+export const sendOtpController = async (req, res) => {
+    try {
+        let data = await otp.findOneAndDelete({ email: req.params.MailId });
+        let otpcode = Math.floor((Math.random() * 10000) + 1);
+        let otpData = new otp({
+            email: req.params.MailId,
+            code: otpcode,
+            expireIn: new Date().getTime() + 300 * 1000
+        })
+        let otpResponse = await otpData.save();
+        await sendOtp(otpResponse.email, otpResponse.code);
+        return res.status(200).send({
+            success: true,
+            message: 'Check Inbox',
+        })
+    } catch (error) {
+        console.log(error);
+        res.status(500).send({
+            success: false,
+            message: 'Error while sending otp',
+            error
+        })
+    }
+};
+
+
+//verify Otp controller
+export const verifyOtpController = async (req, res, next) => {
+    try {
+        const otpCode = req.params.otp;
+        let data = await otp.findOne({ email: req.body.email, code: otpCode });
+        if (data) {
+            let currentTime = new Date().getTime();
+            let diff = data.expireIn - currentTime;
+            if (diff < 0) {
+                console.log("timeOut");
+                await otp.findOneAndDelete({ email: req.body.email });
+                return res.status(200).send({ message: 'OTP Expired' });
+            } else {
+                await otp.findOneAndDelete({ email: req.body.email });
+                next();
+            }
+        } else {
+            res.status(200).send({ message: 'Invalid OTP' });
+        }
+    } catch (error) {
+        console.log(error);
+    }
+}

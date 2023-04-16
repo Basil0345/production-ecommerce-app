@@ -193,6 +193,7 @@ export const productFiltersController = async (req, res) => {
         let args = {}
         if (checked.length > 0) args.category = checked
         if (radio.length) args.price = { $gte: radio[0], $lte: radio[1] }
+        args.quantity = { $gt: 0 }
         const products = await productModel
             .find(args)
             .select("-photo");
@@ -345,7 +346,7 @@ export const braintreePaymentController = async (req, res) => {
         cart.map((i) => {
             total += i.price * i.qty;
         });
-        const newArray = cart.map(({ _id, name, price, qty }) => ({ _id, name, price, qty }));
+        const newArray = cart.map(({ _id, name, price, qty, quantity }) => ({ _id, name, price, qty, quantity }));
         let newTransaction = gateway.transaction.sale({
             amount: total,
             paymentMethodNonce: nonce,
@@ -361,7 +362,22 @@ export const braintreePaymentController = async (req, res) => {
                         buyer: req.user._id,
                         cartItems: newArray
                     }).save()
-                    res.json({ ok: true })
+                    const bulkOps = newArray.map((item) => {
+                        return {
+                            updateOne: {
+                                filter: { _id: item._id },
+                                update: { $set: { quantity: item.quantity - item.qty } },
+                            },
+                        };
+                    });
+                    productModel.bulkWrite(bulkOps)
+                        .then((result) => {
+                            console.log(`${result.modifiedCount} products updated successfully.`);
+                            res.json({ ok: true })
+                        })
+                        .catch((error) => {
+                            console.error(`Error occurred while updating products: ${error}`);
+                        });
                 } else {
                     res.status(500).send(error);
                 }

@@ -5,7 +5,7 @@ import JWT from 'jsonwebtoken';
 import otp from '../models/otp.js';
 export const registerController = async (req, res) => {
     try {
-        const { name, email, password, phone, address, answer } = req.body;
+        const { name, email, password, phone, address } = req.body;
         //validation
         if (!name) {
             return res.send({ message: 'Name is Required' });
@@ -22,14 +22,10 @@ export const registerController = async (req, res) => {
         if (!address) {
             return res.send({ message: 'Address is Required' });
         }
-        if (!answer) {
-            return res.send({ message: 'Answer is Required' });
-        }
         //register user
         const hashedPassword = await hashPassword(password);
-        const validationAnswer = answer.toLowerCase()
         //save
-        const user = await new userModel({ name, email, password: hashedPassword, phone, address, answer: validationAnswer }).save();
+        const user = await new userModel({ name, email, password: hashedPassword, phone, address }).save();
         res.status(200).send({
             success: true,
             message: 'User Registered Successfully',
@@ -100,29 +96,50 @@ export const loginController = async (req, res) => {
 
 };
 
+//Forgot password Check Existing user
+
+export const checkExistingUserForgot = async (req, res, next) => {
+    try {
+        //check user
+        const existingUser = await userModel.findOne({ email: req.params.MailId });
+        //existing user
+        if (existingUser) {
+            next();
+        } else {
+            return res.status(200).send({
+                success: false,
+                message: 'User Not Found'
+            })
+        }
+    } catch (error) {
+        console.log(error);
+        res.status(500).send({
+            success: false,
+            message: 'Something went wrong',
+            error
+        })
+    }
+}
+
 //Forgot Password Controller
 export const forgotPasswordController = async (req, res) => {
     try {
-        const { email, answer, newPassword } = req.body;
+        const { email, newPassword } = req.body;
         if (!email) {
             return res.status(400).send({ message: 'email is required' })
-        }
-        if (!answer) {
-            return res.status(400).send({ message: 'answer is required' })
         }
         if (!newPassword) {
             return res.status(400).send({ message: 'New Password is required' })
         }
         //Check
-        const validationAnswer = answer.toLowerCase()
-        const user = await userModel.findOne({ email, answer: validationAnswer })
+        const user = await userModel.findOne({ email })
 
         //validation
 
         if (!user) {
             return res.status(200).send({
                 success: false,
-                message: 'Wrong Email or Answer'
+                message: 'Email Not Found'
             })
         }
 
@@ -215,6 +232,23 @@ export const getAllOrdersController = async (req, res) => {
     }
 };
 
+//get all users
+export const getAllUsersController = async (req, res) => {
+    try {
+        const users = await userModel
+            .find({})
+            .sort({ createdAt: '-1' })
+        res.json(users);
+    } catch (error) {
+        console.log(error);
+        res.status(500).send({
+            success: false,
+            message: 'Error while getting Users',
+            error
+        })
+    }
+};
+
 //order status
 
 export const orderStatusController = async (req, res) => {
@@ -273,10 +307,19 @@ export const sendOtpController = async (req, res) => {
             expireIn: new Date().getTime() + 300 * 1000
         })
         let otpResponse = await otpData.save();
+        //token
+        let user = req.body
+        const token = await JWT.sign({ email: req.params.MailId }, process.env.JWT_SECRET, {
+            expiresIn: '1d'
+        })
         await sendOtp(otpResponse.email, otpResponse.code);
         return res.status(200).send({
             success: true,
             message: 'Check Inbox',
+            user,
+            token
+
+
         })
     } catch (error) {
         console.log(error);

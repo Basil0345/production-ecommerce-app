@@ -23,7 +23,7 @@ export const sendOtp = async (mailId, otpCode) => {
             secure: false,
             auth: {
                 user: 'awesomecreator09@gmail.com',
-                pass: 'uovrefgjueapdgkb'
+                pass: process.env.NODEMAILER_ADMIN_PASSWORD
             }
         });
         let info = await transporter.sendMail({
